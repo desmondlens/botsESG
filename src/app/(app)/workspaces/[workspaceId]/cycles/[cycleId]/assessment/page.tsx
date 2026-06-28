@@ -6,6 +6,7 @@ import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Button, Badge, Card, EmptyState, useToast } from '@/components/ui'
 import GHGCalculator from '@/components/GHGCalculator'
+import { useStageGuard } from '@/hooks/useStageGuard'
 
 interface Indicator {
   id: string
@@ -295,9 +296,9 @@ function ResponseRow({
 
 export default function AssessmentPage() {
   const { workspaceId, cycleId } = useParams<{ workspaceId: string; cycleId: string }>()
+  const guard = useStageGuard(workspaceId, cycleId, 4)
   const supabase = createClient()
   const { success: toastSuccess, error: toastError } = useToast()
-
   const [indicators, setIndicators] = useState<Indicator[]>([])
   const [responses, setResponses] = useState<Record<string, Response>>({})
   const [loading, setLoading] = useState(true)
@@ -448,6 +449,8 @@ export default function AssessmentPage() {
     G: filteredIndicators.filter((i) => i.pillar === 'G'),
   }
   const pillarsToShow = filter === 'all' ? (['E', 'S', 'G'] as const) : [filter]
+
+  if (guard.checking || !guard.allowed) return null
 
   return (
     <div className="p-8 max-w-6xl">

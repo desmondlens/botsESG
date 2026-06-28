@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Button, Badge, Card, EmptyState, useToast } from '@/components/ui'
-
+import { useStageGuard } from '@/hooks/useStageGuard'
 interface Indicator {
   id: string
   pillar: 'E' | 'S' | 'G'
@@ -34,6 +34,7 @@ const PILLAR_COLORS = {
 
 export default function IndicatorSelectionPage() {
   const { workspaceId, cycleId } = useParams<{ workspaceId: string; cycleId: string }>()
+  const guard = useStageGuard(workspaceId, cycleId, 3)
   const router = useRouter()
   const supabase = createClient()
   const { success, error: toastError } = useToast()
@@ -181,7 +182,7 @@ export default function IndicatorSelectionPage() {
   }
 
   const pillarsToShow = filter === 'all' ? (['E', 'S', 'G'] as const) : [filter]
-
+if (guard.checking || !guard.allowed) return null
   return (
     <div className="p-8 max-w-5xl">
       <div className="mb-8">

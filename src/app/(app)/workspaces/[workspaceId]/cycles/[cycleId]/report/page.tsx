@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Button, Badge, Card, CardHeader, CardSection, EmptyState, useToast } from '@/components/ui'
+import { useStageGuard } from '@/hooks/useStageGuard'
 
 interface Score {
   id: string
@@ -47,6 +48,7 @@ interface CycleData {
 
 export default function ReportPage() {
   const { workspaceId, cycleId } = useParams<{ workspaceId: string; cycleId: string }>()
+  const guard = useStageGuard(workspaceId, cycleId, 7)
   const supabase = createClient()
   const { success, error: toastError, info } = useToast()
 
@@ -247,7 +249,7 @@ async function downloadExcel(report: Report) {
   const org = cycle
     ? (Array.isArray(cycle.workspaces) ? cycle.workspaces[0]?.organisations : cycle.workspaces?.organisations)
     : null
-
+if (guard.checking || !guard.allowed) return null
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-8">

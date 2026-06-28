@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Button, Badge, Card, EmptyState, Textarea, useToast } from '@/components/ui'
+import { useStageGuard } from '@/hooks/useStageGuard'
 
 interface DisclosureTemplate {
   id: string
@@ -53,10 +54,10 @@ const STANDARD_COLORS: Record<string, 'sky' | 'purple'> = {
 
 export default function IFRSDisclosuresPage() {
   const { workspaceId, cycleId } = useParams<{ workspaceId: string; cycleId: string }>()
+  const guard = useStageGuard(workspaceId, cycleId, 2)
   const router = useRouter()
   const supabase = createClient()
   const { success, error: toastError } = useToast()
-
   const [templates, setTemplates] = useState<DisclosureTemplate[]>([])
   const [disclosures, setDisclosures] = useState<Record<string, IFRSDisclosure>>({})
   const [loading, setLoading] = useState(true)
@@ -172,6 +173,8 @@ export default function IFRSDisclosuresPage() {
 
   const totalCount = templates.length
   const completionPct = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0
+
+  if (guard.checking || !guard.allowed) return null
 
   return (
     <div className="p-8 max-w-4xl">

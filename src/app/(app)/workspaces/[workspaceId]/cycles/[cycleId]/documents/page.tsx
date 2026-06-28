@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Button, Input, Select, EmptyState, Badge, useToast } from '@/components/ui'
+import { useStageGuard } from '@/hooks/useStageGuard'
 
 interface Document {
   id: string
@@ -47,6 +48,7 @@ function fileIcon(type: string | null) {
 
 export default function DocumentVaultPage() {
   const { workspaceId, cycleId } = useParams<{ workspaceId: string; cycleId: string }>()
+  const guard = useStageGuard(workspaceId, cycleId, 5)
   const supabase = createClient()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { success, error: toastError, info } = useToast()
@@ -242,7 +244,7 @@ export default function DocumentVaultPage() {
       label: `[${ind.pillar}] ${ind.label}`,
     })),
   ]
-
+if (guard.checking || !guard.allowed) return null
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-8">

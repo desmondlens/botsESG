@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import Link from 'next/link'
 import { Badge, Card, EmptyState } from '@/components/ui'
+import { useStageGuard } from '@/hooks/useStageGuard'
 
 // ─── DFI requirement definitions ─────────────────────────────────────────────
 // Each requirement maps to one or more indicator labels or IFRS disclosure codes
@@ -412,8 +413,8 @@ const STATUS_CONFIG = {
 
 export default function FinanceReadinessPage() {
   const { workspaceId, cycleId } = useParams<{ workspaceId: string; cycleId: string }>()
+  const guard = useStageGuard(workspaceId, cycleId, 8)
   const supabase = createClient()
-
   const [responseMap, setResponseMap] = useState<ResponseMap>({})
   const [ifrsMap, setIfrsMap] = useState<IFRSMap>({})
   const [loading, setLoading] = useState(true)
@@ -531,7 +532,9 @@ export default function FinanceReadinessPage() {
     score >= 70 ? 'text-green-700' : score >= 40 ? 'text-amber-600' : 'text-red-600'
   const scoreBg = (score: number) =>
     score >= 70 ? 'bg-green-50 border-green-200' : score >= 40 ? 'bg-amber-50 border-amber-200' : 'bg-red-50 border-red-200'
-
+  
+  if (guard.checking || !guard.allowed) return null
+  
   return (
     <div className="p-8 max-w-5xl">
       <div className="mb-8">
