@@ -58,6 +58,12 @@ const stages = [
     description: 'Generate the ESG report as Word document for client delivery.',
     href: (wId: string, cId: string) => `/workspaces/${wId}/cycles/${cId}/report`,
   },
+  {
+  step: 8,
+  label: 'Finance readiness',
+  description: 'Check ESG readiness for CEDA, BDC, and NDB loan applications.',
+  href: (wId: string, cId: string) => `/workspaces/${wId}/cycles/${cId}/finance`,
+},
 ]
 
 export default async function CycleDetailPage({ params }: Props) {
