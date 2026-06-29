@@ -37,6 +37,7 @@ export default function NewWorkspacePage() {
 
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [coiDeclared, setCoiDeclared] = useState(false)
 
   const [form, setForm] = useState({
     name: '',
@@ -68,6 +69,7 @@ export default function NewWorkspacePage() {
     if (form.annual_turnover_bwp && isNaN(parseFloat(form.annual_turnover_bwp))) {
       e.annual_turnover_bwp = 'Must be a valid number.'
     }
+    if (!coiDeclared) e.coi = 'You must declare no conflict of interest before proceeding.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -125,7 +127,22 @@ export default function NewWorkspacePage() {
 
     success(`Workspace created for ${form.name.trim()}.`)
     router.push(`/workspaces/${workspace.id}`)
+
+    await supabase.from('audit_log').insert({
+  table_name: 'workspaces',
+  record_id: workspace.id,
+  action: 'insert',
+  new_values: {
+    event: 'conflict_of_interest_declaration',
+    declared_by: user.id,
+    declared_at: new Date().toISOString(),
+    organisation: form.name.trim(),
+    declaration: 'Consultant declared no conflict of interest',
+  },
+  source_module: 'new_workspace',
+})
   }
+
 
   return (
     <div className="p-8 max-w-2xl">
@@ -230,6 +247,35 @@ export default function NewWorkspacePage() {
           />
         </div>
 
+        {/* Conflict of interest declaration */}
+<div className="bg-amber-50 border border-amber-200 rounded-xl p-6">
+  <h2 className="text-sm font-semibold text-amber-900 mb-2">Conflict of interest declaration</h2>
+  <p className="text-xs text-amber-800 mb-4">
+    Before commencing this ESG assessment, the assigned consultant must confirm that no conflict
+    of interest exists. A conflict of interest includes any direct or indirect financial interest
+    in the client organisation, employment of an immediate family member in a senior role, or any
+    personal relationship that could compromise objectivity.
+  </p>
+  <label className="flex items-start gap-3 cursor-pointer">
+    <input
+      type="checkbox"
+      checked={coiDeclared}
+      onChange={(e) => {
+        setCoiDeclared(e.target.checked)
+        if (errors.coi) setErrors((prev) => { const er = { ...prev }; delete er.coi; return er })
+      }}
+      className="mt-0.5 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+    />
+    <span className="text-xs text-amber-800 font-medium">
+      I confirm that I have no conflict of interest in relation to this client organisation
+      and that I am able to conduct this assessment with objectivity and independence.
+      I understand that this declaration is recorded in the platform audit log.
+    </span>
+  </label>
+  {errors.coi && (
+    <p className="text-xs text-red-600 mt-2">{errors.coi}</p>
+  )}
+</div>
         <div className="flex items-center gap-3">
           <Button type="submit" loading={loading}>
             Create workspace
