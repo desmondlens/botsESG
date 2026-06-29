@@ -60,7 +60,7 @@ export default function AdminUsersPage() {
     const e: Record<string, string> = {}
     if (!form.email.trim()) e.email = 'Email is required.'
     if (!form.full_name.trim()) e.full_name = 'Full name is required.'
-    if (!form.password || form.password.length < 8) e.password = 'Password must be at least 8 characters.'
+    if (!form.password || form.password.length < 12) e.password = 'Password must be at least 12 characters.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -185,9 +185,9 @@ export default function AdminUsersPage() {
                 required
                 value={form.password}
                 onChange={(e) => setField('password', e.target.value)}
-                placeholder="Min. 8 characters"
+                placeholder="Min. 12 characters"
                 error={errors.password}
-                hint="User should change this on first login."
+                hint="Minimum 12 characters. User should change this on first login."
               />
               <Select
                 label="Role"

@@ -761,12 +761,35 @@ export async function POST(req: NextRequest) {
             ...sectionHeader('10. Methodology and scoring', 'Assessment approach, scoring formula, and data quality notes'),
 
             ...[
-              ['Materiality approach', 'A dual-axis materiality assessment was conducted per the BSE Sustainability Disclosure Guidance (double materiality) and GRI 3. Topics were scored on impact significance (effect on people and environment) and financial significance (effect on financial position and cash flows). Topics scoring 3.0 or above on either axis were determined material. IFRS financial materiality was applied separately to identify topics requiring IFRS S1/S2 narrative disclosure.'],
-              ['Scoring methodology', 'Each indicator is scored 0-100 based on response completeness. Full response = 100 base score. Penalties are deducted: low confidence (-20 points), estimated data (-10 points), missing source reference (-10 points). Material indicators carry double weight in pillar score calculations. Pillar weights: Environmental 35%, Social 35%, Governance 30%. The scoring configuration used for this assessment can be reviewed in the Botsfirm ESG platform.'],
-              ['GHG calculation methodology', 'Scope 1 GHG emissions were calculated using DEFRA 2023 emission factors for diesel and petrol combustion. Scope 2 GHG emissions used the BPC Botswana grid location-based emission factor of 0.90 kgCO2e/kWh (estimated). All GHG values are expressed in metric tonnes of CO2 equivalent (tCO2e) using IPCC AR6 GWP100 values. Market-based Scope 2 emissions are not available for this reporting period.'],
-              ['IFRS alignment score', 'The IFRS S1/S2 alignment score reflects the proportion of IFRS-mapped indicators for which a response was provided. It does not reflect the quality or completeness of qualitative narrative disclosures, which require management review and completion.'],
-              ['SDG alignment score', 'The SDG alignment score reflects the proportion of SDGs addressed by indicators for which a response was provided, expressed as a percentage of total SDGs tagged in the indicator library.'],
-              ['BSE alignment', 'This report has been prepared with reference to the Botswana Stock Exchange Sustainability Disclosure Guidance (August 2024). The BSE Guidance adopts a double materiality approach aligned with GRI, IFRS S1/S2, and the European Sustainability Reporting Standards. This report does not constitute a formal BSE listing disclosure.'],
+  [
+    'Materiality approach',
+    'A dual-axis materiality assessment was performed with reference to the Botswana Stock Exchange Sustainability Disclosure Guidance (August 2024) and GRI 3: Material Topics. Sustainability topics were evaluated based on (i) impact materiality (actual or potential impacts on people, society, and the environment) and (ii) financial materiality (actual or potential effects on enterprise value, financial position, financial performance, and cash flows). Topics achieving the configured materiality threshold on either axis were classified as material for this assessment. IFRS financial materiality was assessed separately to identify sustainability matters relevant to narrative disclosures under IFRS Sustainability Disclosure Standards (IFRS S1 and IFRS S2).'
+  ],
+
+  [
+    'Scoring methodology',
+    'Each assessment indicator is assigned a score between 0 and 100 based on the completeness and quality of information provided. A complete response receives a base score of 100, with configurable deductions applied for lower confidence responses, estimated data, and missing supporting source references. Indicators identified as material receive increased weighting in overall pillar calculations. Unless otherwise configured, overall ESG pillar weightings are Environmental (35%), Social (35%), and Governance (30%). The scoring methodology and weighting configuration applied to this assessment are documented within the Botsfirm ESG platform.'
+  ],
+
+  [
+    'GHG calculation methodology',
+    'Where greenhouse gas (GHG) emissions were calculated by the platform, Scope 1 emissions were estimated using DEFRA 2023 emission factors for applicable fuel combustion activities. Scope 2 emissions were estimated using the Botswana electricity grid location-based emission factor configured within the platform (currently 0.90 kgCO₂e/kWh, estimated where no official published factor is available). Emissions are reported in metric tonnes of carbon dioxide equivalent (tCO₂e) using IPCC AR6 100-year Global Warming Potential (GWP100) values. Market-based Scope 2 emissions have not been calculated unless contractual supplier-specific emission factors were available.'
+  ],
+
+  [
+    'IFRS S1/S2 Alignment Score — IMPORTANT DISCLOSURE',
+    'The IFRS S1/S2 Alignment Score presented in this report is a proprietary readiness metric developed by Botsfirm Solidarity. It reflects the extent to which responses have been provided for disclosure indicators mapped to the IFRS Sustainability Disclosure Standards (IFRS S1 and IFRS S2). The score is intended solely as an informational readiness assessment and does not constitute an audit opinion, assurance engagement, certification, or determination of compliance with IFRS Sustainability Disclosure Standards. The score should not be represented to any third party as evidence of IFRS S1/S2 compliance. Any formal assessment of compliance or independent assurance over sustainability disclosures must be performed separately by appropriately qualified professionals where required.'
+  ],
+
+  [
+    'SDG Alignment Score',
+    'The SDG Alignment Score is a proprietary coverage metric indicating the proportion of United Nations Sustainable Development Goals (SDGs) represented by completed indicators within the assessment. The score reflects disclosure coverage only and should not be interpreted as a measure of organisational contribution, impact, or achievement against the Sustainable Development Goals.'
+  ],
+
+  [
+    'BSE Sustainability Disclosure Guidance',
+    'This report has been prepared with reference to the Botswana Stock Exchange Sustainability Disclosure Guidance (August 2024). The assessment methodology incorporates concepts consistent with the BSE Guidance, including double materiality and mappings to GRI Standards and IFRS Sustainability Disclosure Standards where applicable. This report is an independent readiness assessment generated through the Botsfirm ESG platform and does not constitute an official Botswana Stock Exchange filing, regulatory submission, or compliance determination.'
+  ],
             ].map(([title, text]) => [
               para(title, { bold: true, size: 20, color: NAVY, spacing: { before: 160, after: 80 } }),
               para(text, { size: 19, color: '374151', spacing: { before: 0, after: 80 } }),

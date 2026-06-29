@@ -32,6 +32,7 @@ interface Response {
   consultant_note: string | null
   target_value: number | null
   target_year: number | null
+  updated_at: string | null
 }
 
 const PILLAR_LABELS = { E: 'Environmental', S: 'Social', G: 'Governance' }
@@ -309,10 +310,10 @@ export default function AssessmentPage() {
 
   const fetchData = useCallback(async () => {
     const { data: ci } = await supabase
-      .from('cycle_indicators')
-      .select(`indicator_id, indicators ( id, pillar, label, description, guidance, data_type, unit, materiality_tier )`)
-      .eq('cycle_id', cycleId)
-      .neq('inclusion_source', 'manual_exclude')
+  .from('cycle_indicators')
+  .select('id, indicator_id, is_material, inclusion_source, indicators ( id, pillar, label, description, guidance, data_type, unit, materiality_tier )')
+  .eq('cycle_id', cycleId)
+  .neq('inclusion_source', 'manual_exclude')
 
     const inds = (ci ?? [])
       .map((row) => {
@@ -333,33 +334,34 @@ export default function AssessmentPage() {
     for (const ind of inds) {
       const existing = existingResponses?.find((r) => r.indicator_id === ind.id)
       responseMap[ind.id] = existing ? {
-        id: existing.id,
-        indicator_id: existing.indicator_id,
-        value_number: existing.value_number,
-        value_text: existing.value_text,
-        value_boolean: existing.value_boolean,
-        source_reference: existing.source_reference,
-        confidence_level: existing.confidence_level as 'high' | 'medium' | 'low' | 'estimated',
-        is_not_applicable: existing.is_not_applicable,
-        na_reason: existing.na_reason,
-        consultant_note: existing.consultant_note,
-        target_value: existing.target_value,
-        target_year: existing.target_year,
-      } : {
-        indicator_id: ind.id,
-        value_number: null,
-        value_text: null,
-        value_boolean: null,
-        source_reference: null,
-        confidence_level: 'medium' as const,
-        is_not_applicable: false,
-        na_reason: null,
-        consultant_note: null,
-        target_value: null,
-        target_year: null,
-      }
+  id: existing.id,
+  indicator_id: existing.indicator_id,
+  value_number: existing.value_number,
+  value_text: existing.value_text,
+  value_boolean: existing.value_boolean,
+  source_reference: existing.source_reference,
+  confidence_level: existing.confidence_level as 'high' | 'medium' | 'low' | 'estimated',
+  is_not_applicable: existing.is_not_applicable,
+  na_reason: existing.na_reason,
+  consultant_note: existing.consultant_note,
+  target_value: existing.target_value,
+  target_year: existing.target_year,
+  updated_at: existing.updated_at ?? null,
+} : {
+  indicator_id: ind.id,
+  value_number: null,
+  value_text: null,
+  value_boolean: null,
+  source_reference: null,
+  confidence_level: 'medium' as const,
+  is_not_applicable: false,
+  na_reason: null,
+  consultant_note: null,
+  target_value: null,
+  target_year: null,
+  updated_at: null,
+}
     }
-
     setResponses(responseMap)
     setLoading(false)
   }, [cycleId, supabase])
@@ -388,30 +390,51 @@ export default function AssessmentPage() {
         .single()
 
       if (existing.data?.id) {
-        const { error } = await supabase
-          .from('responses')
-          .update({ ...updates, updated_by: user.id })
-          .eq('id', existing.data.id)
-        if (error) toastError('Failed to save response.')
-      } else {
+  // Optimistic lock — fetch current updated_at
+  const { data: dbRecord } = await supabase
+    .from('responses')
+    .select('updated_at')
+    .eq('id', existing.data.id)
+    .single()
+
+  const localRecord = responses[indicatorId]
+
+  if (
+    dbRecord?.updated_at &&
+    localRecord?.updated_at &&
+    dbRecord.updated_at !== localRecord.updated_at
+  ) {
+    toastError('This response was modified by another user. Refresh the page before saving.')
+    setSavingId(null)
+    return
+  }
+
+  const { error } = await supabase
+    .from('responses')
+    .update({ ...updates, updated_by: user.id })
+    .eq('id', existing.data.id)
+  if (error) toastError('Failed to save response.')
+}
+       else {
         const { error } = await supabase
           .from('responses')
           .insert({
-            cycle_id: cycleId,
-            indicator_id: indicatorId,
-            value_number: merged.value_number,
-            value_text: merged.value_text,
-            value_boolean: merged.value_boolean,
-            source_reference: merged.source_reference,
-            confidence_level: merged.confidence_level,
-            is_not_applicable: merged.is_not_applicable,
-            na_reason: merged.na_reason,
-            consultant_note: merged.consultant_note,
-            created_by: user.id,
-            updated_by: user.id,
-            target_value: merged.target_value,
-            target_year: merged.target_year,
-          })
+        cycle_id: cycleId,
+        indicator_id: indicatorId,
+        value_number: merged.value_number,
+        value_text: merged.value_text,
+        value_boolean: merged.value_boolean,
+        source_reference: merged.source_reference,
+        confidence_level: merged.confidence_level,
+        is_not_applicable: merged.is_not_applicable,
+        na_reason: merged.na_reason,
+        consultant_note: merged.consultant_note,
+        created_by: user.id,
+        updated_by: user.id,
+        target_value: merged.target_value,
+        target_year: merged.target_year,
+        updated_at: null,
+      })
         if (error) toastError('Failed to save response.')
       }
 
