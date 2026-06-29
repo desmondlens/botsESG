@@ -57,6 +57,7 @@ export default function ReportPage() {
   const [reports, setReports] = useState<Report[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false)
 
   const fetchData = useCallback(async () => {
     const { data: cycleData } = await supabase
@@ -99,6 +100,16 @@ export default function ReportPage() {
     setLatestScore(score ?? null)
     setReports(cycleReports)
     setLoading(false)
+
+    const { data: { user: currentUser } } = await supabase.auth.getUser()
+if (currentUser) {
+  const { data: userData } = await supabase
+    .from('users')
+    .select('role')
+    .eq('id', currentUser.id)
+    .single()
+  setIsSuperAdmin(userData?.role === 'superadmin')
+}
   }, [cycleId, workspaceId, supabase])
 
   useEffect(() => {
@@ -270,7 +281,26 @@ export default function ReportPage() {
       toastError('Failed to generate Excel report.')
     }
   }
+  async function finaliseReport(report: Report) {
+  const notes = window.prompt('Finalisation notes (optional — describe the review performed):')
+  if (notes === null) return // cancelled
 
+  info('Finalising report...')
+  const res = await fetch('/api/reports/finalise', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reportId: report.id, finalisationNotes: notes }),
+  })
+
+  const result = await res.json()
+  if (!res.ok) {
+    toastError(result.error ?? 'Failed to finalise report.')
+    return
+  }
+
+  success(result.message)
+  fetchData()
+}
   if (guard.checking || !guard.allowed) return null
 
   return (
@@ -411,6 +441,11 @@ export default function ReportPage() {
                           <Button variant="secondary" size="sm" onClick={() => downloadExcel(report)}>
                             Excel
                           </Button>
+                          {isSuperAdmin && report.status !== 'final' && (
+                            <Button variant="primary" size="sm" onClick={() => finaliseReport(report)}>
+                              Finalise
+                            </Button>
+                          )}
                         </div>
                       </td>
                     </tr>

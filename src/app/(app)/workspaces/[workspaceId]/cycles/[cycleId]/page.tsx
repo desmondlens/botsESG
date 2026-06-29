@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { notFound } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
 import Link from 'next/link'
 import { Badge, Card } from '@/components/ui'
 
@@ -70,6 +70,10 @@ export default async function CycleDetailPage({ params }: Props) {
   const { workspaceId, cycleId } = await params
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    redirect('/login')
+  }
   const { data: cycle } = await supabase
     .from('assessment_cycles')
     .select(`
@@ -80,7 +84,17 @@ export default async function CycleDetailPage({ params }: Props) {
     .eq('workspace_id', workspaceId)
     .single()
 
-  if (!cycle) notFound()
+  if (!cycle) {
+  return (
+    <div className="p-8">
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
+        <p className="text-sm font-medium text-amber-800">Unable to load cycle.</p>
+        <p className="text-xs text-amber-700 mt-1">The assessment cycle could not be found or you do not have access. Try refreshing the page.</p>
+        <a href="/workspaces" className="mt-2 inline-block text-xs font-medium text-amber-700 underline">← Back to workspaces</a>
+      </div>
+    </div>
+  )
+}
 
   const ws = Array.isArray(cycle.workspaces) ? cycle.workspaces[0] : cycle.workspaces
   const org = ws
