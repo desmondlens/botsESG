@@ -27,6 +27,9 @@ export default function AdminUsersPage() {
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showSuperadminConfirm, setShowSuperadminConfirm] = useState(false)
+  const [superadminReason, setSuperadminReason] = useState('')
+  const [pendingRoleChange, setPendingRoleChange] = useState<{ user: User; newRole: 'consultant' | 'superadmin' } | null>(null)
 
   const [form, setForm] = useState({
     email: '',
@@ -48,7 +51,7 @@ export default function AdminUsersPage() {
     fetchUsers()
   }, [fetchUsers])
 
-  function set(field: string, value: string) {
+  function setField(field: string, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }))
     if (errors[field]) setErrors((prev) => { const e = { ...prev }; delete e[field]; return e })
   }
@@ -63,49 +66,43 @@ export default function AdminUsersPage() {
   }
 
   async function handleCreate() {
-    if (!validate()) return
-    setSaving(true)
+  if (!validate()) return
 
-    // Create auth user via Supabase Admin API
-    const { data: authData, error: authError } = await supabase.auth.signUp({
+  if (form.role === 'superadmin' && !superadminReason.trim()) {
+    setShowSuperadminConfirm(true)
+    return
+  }
+
+  setSaving(true)
+
+  const res = await fetch('/api/admin/create-user', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
       email: form.email.trim(),
       password: form.password,
-      options: {
-        data: { full_name: form.full_name.trim() },
-      },
-    })
+      full_name: form.full_name.trim(),
+      role: form.role,
+      superadmin_reason: superadminReason,
+    }),
+  })
 
-    if (authError || !authData.user) {
-      toastError(authError?.message ?? 'Failed to create auth user.')
-      setSaving(false)
-      return
-    }
+  const result = await res.json()
 
-    // Insert into users table
-    const { data: newUser, error: dbError } = await supabase
-      .from('users')
-      .insert({
-        id: authData.user.id,
-        email: form.email.trim(),
-        full_name: form.full_name.trim(),
-        role: form.role as 'consultant' | 'superadmin',
-        is_active: true,
-      })
-      .select('id, email, full_name, role, is_active, created_at')
-      .single()
-
-    if (dbError || !newUser) {
-      toastError('Auth user created but failed to save profile. Check Supabase.')
-      setSaving(false)
-      return
-    }
-
-    setUsers((prev) => [newUser as User, ...prev])
-    setForm({ email: '', full_name: '', role: 'consultant', password: '' })
-    setShowForm(false)
+  if (!res.ok) {
+    toastError(result.error ?? 'Failed to create user.')
     setSaving(false)
-    success(`${form.full_name.trim()} added as ${form.role}.`)
+    return
   }
+
+  setUsers((prev) => [result.user as User, ...prev])
+  setForm({ email: '', full_name: '', role: 'consultant', password: '' })
+  setSuperadminReason('')
+  setShowSuperadminConfirm(false)
+  setShowForm(false)
+  setSaving(false)
+  success(`${form.full_name.trim()} added as ${form.role}.`)
+}
 
   async function toggleActive(user: User) {
     const { error } = await supabase
@@ -122,6 +119,14 @@ export default function AdminUsersPage() {
   }
 
   async function changeRole(user: User, newRole: 'consultant' | 'superadmin') {
+    if (newRole === 'superadmin') {
+      setPendingRoleChange({ user, newRole })
+      return
+    }
+    await applyRoleChange(user, newRole, '')
+  }
+
+  async function applyRoleChange(user: User, newRole: 'consultant' | 'superadmin', reason: string) {
     const { error } = await supabase
       .from('users')
       .update({ role: newRole })
@@ -132,7 +137,9 @@ export default function AdminUsersPage() {
     setUsers((prev) => prev.map((u) =>
       u.id === user.id ? { ...u, role: newRole } : u
     ))
-    success(`${user.full_name} is now ${newRole}.`)
+    setPendingRoleChange(null)
+    setSuperadminReason('')
+    success(`${user.full_name} is now ${newRole}.${reason ? ` Reason: ${reason}` : ''}`)
   }
 
   return (
@@ -157,7 +164,7 @@ export default function AdminUsersPage() {
                 label="Full name"
                 required
                 value={form.full_name}
-                onChange={(e) => set('full_name', e.target.value)}
+                onChange={(e) => setField('full_name', e.target.value)}
                 placeholder="e.g. Desmond Botshabelo"
                 error={errors.full_name}
               />
@@ -166,7 +173,7 @@ export default function AdminUsersPage() {
                 type="email"
                 required
                 value={form.email}
-                onChange={(e) => set('email', e.target.value)}
+                onChange={(e) => setField('email', e.target.value)}
                 placeholder="e.g. desmond@botsfirm.co.bw"
                 error={errors.email}
               />
@@ -177,7 +184,7 @@ export default function AdminUsersPage() {
                 type="password"
                 required
                 value={form.password}
-                onChange={(e) => set('password', e.target.value)}
+                onChange={(e) => setField('password', e.target.value)}
                 placeholder="Min. 8 characters"
                 error={errors.password}
                 hint="User should change this on first login."
@@ -185,7 +192,7 @@ export default function AdminUsersPage() {
               <Select
                 label="Role"
                 value={form.role}
-                onChange={(e) => set('role', e.target.value)}
+                onChange={(e) => setField('role', e.target.value)}
                 options={ROLE_OPTIONS}
               />
             </div>
@@ -276,6 +283,76 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </Card>
+      )}
+
+      {/* Superadmin creation confirmation modal */}
+      {showSuperadminConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">Confirm superadmin access</h3>
+            <p className="text-xs text-gray-500 mb-4">
+              Superadmin accounts have full platform access including user management, audit logs, and report finalisation.
+              Provide a reason for this access level — it will be recorded in the audit log.
+            </p>
+            <textarea
+              value={superadminReason}
+              onChange={(e) => setSuperadminReason(e.target.value)}
+              placeholder="Reason for superadmin access (required)"
+              rows={3}
+              className="w-full text-sm text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+            />
+            <div className="flex gap-3">
+              <Button
+                loading={saving}
+                disabled={!superadminReason.trim()}
+                onClick={handleCreate}
+              >
+                Confirm and create
+              </Button>
+              <button
+                onClick={() => { setShowSuperadminConfirm(false); setSuperadminReason('') }}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Role change to superadmin confirmation modal */}
+      {pendingRoleChange && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-xl w-full max-w-md p-6">
+            <h3 className="text-sm font-semibold text-gray-900 mb-1">
+              Promote {pendingRoleChange.user.full_name} to superadmin?
+            </h3>
+            <p className="text-xs text-gray-500 mb-4">
+              This will grant full platform access. Provide a reason — it will be recorded in the audit log.
+            </p>
+            <textarea
+              value={superadminReason}
+              onChange={(e) => setSuperadminReason(e.target.value)}
+              placeholder="Reason for promoting to superadmin (required)"
+              rows={3}
+              className="w-full text-sm text-gray-900 placeholder-gray-400 border border-gray-300 rounded-xl px-3 py-2 mb-4 focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+            />
+            <div className="flex gap-3">
+              <Button
+                disabled={!superadminReason.trim()}
+                onClick={() => applyRoleChange(pendingRoleChange.user, pendingRoleChange.newRole, superadminReason)}
+              >
+                Confirm promotion
+              </Button>
+              <button
+                onClick={() => { setPendingRoleChange(null); setSuperadminReason('') }}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
