@@ -236,22 +236,19 @@ export default function DashboardPage() {
   }, [supabase])
 
   const fetchNews = useCallback(async () => {
-    try {
-      const res = await fetch(
-        `https://newsdata.io/api/1/news?apikey=pub_bb6f5f1af06249388eeebc60a91b0f3b&country=bw&language=en&category=business&size=8`
-      )
-      const json = await res.json()
-      if (json.status === 'success' && json.results) {
-        setNews(json.results.slice(0, 8))
-      } else {
-        setNewsError(true)
-      }
-    } catch {
+  try {
+    const res = await fetch('/api/news')
+    const json = await res.json()
+    if (json.status === 'success' && json.results) {
+      setNews(json.results.slice(0, 8))
+    } else {
       setNewsError(true)
     }
-    setLoadingNews(false)
-  }, [])
-
+  } catch {
+    setNewsError(true)
+  }
+  setLoadingNews(false)
+}, [])
   const fetchWeather = useCallback(async () => {
     try {
       if (typeof navigator !== 'undefined' && navigator.geolocation) {
