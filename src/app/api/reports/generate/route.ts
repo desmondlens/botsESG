@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { createHash } from 'crypto'
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   Header, Footer, AlignmentType, HeadingLevel, BorderStyle, WidthType,
@@ -161,7 +162,9 @@ export async function POST(req: NextRequest) {
 
     const { reportId } = await req.json()
     if (!reportId) return NextResponse.json({ error: 'reportId required' }, { status: 400 })
-
+    
+    const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
     // ── Fetch report and snapshot ──────────────────────────────────────────────
     const { data: report } = await supabase
       .from('reports')
@@ -791,8 +794,39 @@ export async function POST(req: NextRequest) {
         },
       ],
     })
-
     const buffer = await Packer.toBuffer(doc)
+
+// ── Hash and log ─────────────────────────────────────────────────────────────
+const { createHash } = await import('crypto')
+const hash = createHash('sha256').update(Buffer.from(buffer)).digest('hex')
+
+const { error: hashError } = await supabase
+  .from('reports')
+  .update({
+    docx_hash: hash,
+    hash_algorithm: 'SHA-256',
+    hash_computed_at: new Date().toISOString(),
+  })
+  .eq('id', reportId)
+
+if (hashError) {
+  console.error('Hash update failed:', hashError)
+}
+
+await supabase.from('file_activity_log').insert({
+  activity_type: 'report_generated',
+  file_type: 'word_report',
+  filename: `ESG_Report_v${report.report_version}.docx`,
+  report_id: reportId,
+  cycle_id: snap.cycle_id,
+  workspace_id: report.workspace_id,
+  report_version: report.report_version,
+  performed_by: user.id,
+  performed_by_email: user.email,
+  notes: `SHA-256: ${hash}`,
+})
+
+// ── Return ────────────────────────────────────────────────────────────────────
 const uint8 = new Uint8Array(buffer)
 
 return new NextResponse(uint8, {

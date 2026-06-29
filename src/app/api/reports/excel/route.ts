@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import ExcelJS from 'exceljs'
+import { createHash } from 'crypto'
 
 const NAVY   = '0C4A7C'
 const SKY    = '0EA5E9'
@@ -16,6 +17,8 @@ const RED_BG  = 'FEE2E2'
 const GRAY_BG = 'F8FAFC'
 const GRAY_TEXT = '64748B'
 const DARK   = '1E293B'
+const buffer = await Packer.toBuffer(doc)
+const hash = createHash('sha256').update(buffer).digest('hex')
 
 function headerStyle(bg = NAVY, fg = WHITE): Partial<ExcelJS.Style> {
   return {

@@ -141,16 +141,48 @@ export default function ReportPage() {
       .select(`organisations ( name, sector, sub_sector, country, size_category, employee_count, annual_turnover_bwp, registration_number )`)
       .eq('id', workspaceId)
       .single()
+      
+    const { data: scoringConfig } = await supabase
+  .from('scoring_configs')
+  .select('*')
+  .eq('is_default', true)
+  .single()
 
+const { data: emissionFactors } = await supabase
+  .from('emission_factors')
+  .select('id, label, factor, unit_denominator, source, category')
+
+const { data: frameworks } = await supabase
+  .from('frameworks')
+  .select('code, name, version, effective_date')
+
+const { data: activeIndicators } = await supabase
+  .from('indicators')
+  .select('id, label, pillar, materiality_tier, data_type, unit, is_active')
+  .eq('is_active', true)
+    
     const snapshotData = {
-      cycle: { id: cycleId, period_start: cycle?.period_start, period_end: cycle?.period_end, status: cycle?.status },
-      organisation: Array.isArray(orgData?.organisations) ? orgData.organisations[0] : orgData?.organisations,
-      scores: latestScore,
-      responses: responses ?? [],
-      materiality_topics: materialityTopics ?? [],
-      cycle_indicators: cycleIndicators ?? [],
-      generated_at: new Date().toISOString(),
-    }
+  cycle: { id: cycleId, period_start: cycle?.period_start, period_end: cycle?.period_end, status: cycle?.status },
+  organisation: Array.isArray(orgData?.organisations) ? orgData.organisations[0] : orgData?.organisations,
+  scores: latestScore,
+  responses: responses ?? [],
+  materiality_topics: materialityTopics ?? [],
+  cycle_indicators: cycleIndicators ?? [],
+  methodology_context: {
+    snapshot_schema_version: '2.0',
+    captured_at: new Date().toISOString(),
+    scoring_config: scoringConfig ?? null,
+    emission_factors: emissionFactors ?? [],
+    frameworks: frameworks ?? [],
+    indicator_library_snapshot: activeIndicators ?? [],
+    platform_version: '1.0.0',
+    bse_guidance_version: 'August 2024',
+    gri_version: '2021',
+    ifrs_s1_version: 'June 2023',
+    ifrs_s2_version: 'June 2023',
+  },
+  generated_at: new Date().toISOString(),
+}
 
     const { data: snapshot, error: snapshotError } = await supabase
       .from('report_snapshots')
