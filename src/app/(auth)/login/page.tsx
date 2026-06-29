@@ -15,21 +15,37 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError(null)
+  e.preventDefault()
+  setLoading(true)
+  setError(null)
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
 
-    if (error) {
-      setError('Invalid email or password. Please try again.')
-      setLoading(false)
-      return
-    }
-
-    router.push('/dashboard')
-    router.refresh()
+  if (signInError) {
+    setError('Invalid email or password. Please try again.')
+    setLoading(false)
+    return
   }
+
+  // Check MFA enrollment
+  const { data: factors } = await supabase.auth.mfa.listFactors()
+  const hasVerifiedFactor = factors?.totp?.some(f => f.status === 'verified')
+
+  if (!hasVerifiedFactor) {
+    router.push('/mfa-setup')
+    return
+  }
+
+  // Check assurance level — if not aal2, challenge required
+  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (aal?.currentLevel !== 'aal2') {
+    router.push('/mfa-challenge')
+    return
+  }
+
+  router.push('/dashboard')
+  router.refresh()
+}
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4">
