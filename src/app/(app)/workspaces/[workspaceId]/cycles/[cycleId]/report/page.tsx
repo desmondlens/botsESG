@@ -141,147 +141,138 @@ export default function ReportPage() {
       .select(`organisations ( name, sector, sub_sector, country, size_category, employee_count, annual_turnover_bwp, registration_number )`)
       .eq('id', workspaceId)
       .single()
-      
+
     const { data: scoringConfig } = await supabase
-  .from('scoring_configs')
-  .select('*')
-  .eq('is_default', true)
-  .single()
+      .from('scoring_configs')
+      .select('*')
+      .eq('is_default', true)
+      .single()
 
-const { data: emissionFactors } = await supabase
-  .from('emission_factors')
-  .select('id, label, factor, unit_denominator, source, category')
+    const { data: emissionFactors } = await supabase
+      .from('emission_factors')
+      .select('id, label, factor, unit_denominator, source, category')
 
-const { data: frameworks } = await supabase
-  .from('frameworks')
-  .select('code, name, version, effective_date')
+    const { data: frameworks } = await supabase
+      .from('frameworks')
+      .select('code, name, version, effective_date')
 
-const { data: activeIndicators } = await supabase
-  .from('indicators')
-  .select('id, label, pillar, materiality_tier, data_type, unit, is_active')
-  .eq('is_active', true)
-    
+    const { data: activeIndicators } = await supabase
+      .from('indicators')
+      .select('id, label, pillar, materiality_tier, data_type, unit, is_active')
+      .eq('is_active', true)
+
     const snapshotData = {
-  cycle: { id: cycleId, period_start: cycle?.period_start, period_end: cycle?.period_end, status: cycle?.status },
-  organisation: Array.isArray(orgData?.organisations) ? orgData.organisations[0] : orgData?.organisations,
-  scores: latestScore,
-  responses: responses ?? [],
-  materiality_topics: materialityTopics ?? [],
-  cycle_indicators: cycleIndicators ?? [],
-  methodology_context: {
-    snapshot_schema_version: '2.0',
-    captured_at: new Date().toISOString(),
-    scoring_config: scoringConfig ?? null,
-    emission_factors: emissionFactors ?? [],
-    frameworks: frameworks ?? [],
-    indicator_library_snapshot: activeIndicators ?? [],
-    platform_version: '1.0.0',
-    bse_guidance_version: 'August 2024',
-    gri_version: '2021',
-    ifrs_s1_version: 'June 2023',
-    ifrs_s2_version: 'June 2023',
-  },
-  generated_at: new Date().toISOString(),
-}
+      cycle: { id: cycleId, period_start: cycle?.period_start, period_end: cycle?.period_end, status: cycle?.status },
+      organisation: Array.isArray(orgData?.organisations) ? orgData.organisations[0] : orgData?.organisations,
+      scores: latestScore,
+      responses: responses ?? [],
+      materiality_topics: materialityTopics ?? [],
+      cycle_indicators: cycleIndicators ?? [],
+      methodology_context: {
+        snapshot_schema_version: '2.0',
+        captured_at: new Date().toISOString(),
+        scoring_config: scoringConfig ?? null,
+        emission_factors: emissionFactors ?? [],
+        frameworks: frameworks ?? [],
+        indicator_library_snapshot: activeIndicators ?? [],
+        platform_version: '1.0.0',
+        bse_guidance_version: 'August 2024',
+        gri_version: '2021',
+        ifrs_s1_version: 'June 2023',
+        ifrs_s2_version: 'June 2023',
+      },
+      generated_at: new Date().toISOString(),
+    }
 
-    const { data: snapshot, error: snapshotError } = await supabase
-      .from('report_snapshots')
-      .insert({
-        cycle_id: cycleId,
-        score_id: latestScore.id,
-        snapshot_data: JSON.parse(JSON.stringify(snapshotData)),
-        generated_by: user.id,
-      })
-      .select('id')
-      .single()
+    const res = await fetch('/api/reports/create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cycleId,
+        workspaceId,
+        snapshotData: JSON.parse(JSON.stringify(snapshotData)),
+        scoreId: latestScore.id,
+        userId: user.id,
+      }),
+    })
 
-    if (snapshotError || !snapshot) {
-      toastError('Failed to create report snapshot.')
+    if (!res.ok) {
+      const err = await res.json()
+      toastError(err.error ?? 'Failed to create report.')
       setGenerating(false)
       return
     }
 
-    const nextVersion = reports.length > 0 ? Math.max(...reports.map(r => r.report_version)) + 1 : 1
+    const result = await res.json()
 
-    const { data: newReport, error: reportError } = await supabase
+    const { data: newReport } = await supabase
       .from('reports')
-      .insert({
-        snapshot_id: snapshot.id,
-        workspace_id: workspaceId,
-        report_version: nextVersion,
-        status: 'draft',
-        generated_by: user.id,
-        is_locked: false,
-      })
       .select('id, report_version, status, storage_path_pdf, storage_path_docx, generated_at, is_locked, snapshot_id')
+      .eq('id', result.report_id)
       .single()
 
-    if (reportError || !newReport) {
-      toastError('Failed to create report record.')
-      setGenerating(false)
-      return
+    if (newReport) {
+      setReports((prev) => [newReport as Report, ...prev])
     }
 
-    setReports((prev) => [newReport as Report, ...prev])
     setGenerating(false)
-    success(`Report v${nextVersion} generated successfully.`)
+    success(`Report v${result.version} generated successfully.`)
   }
 
   async function downloadReport(report: Report) {
-  info('Generating Word document...')
-  try {
-    const res = await fetch('/api/reports/generate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reportId: report.id }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      toastError(err.error ?? 'Failed to generate report.')
-      return
+    info('Generating Word document...')
+    try {
+      const res = await fetch('/api/reports/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId: report.id }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toastError(err.error ?? 'Failed to generate report.')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ESG_Report_v${report.report_version}.docx`
+      a.click()
+      URL.revokeObjectURL(url)
+      success('Word report downloaded.')
+    } catch {
+      toastError('Failed to generate report.')
     }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `ESG_Report_v${report.report_version}.docx`
-    a.click()
-    URL.revokeObjectURL(url)
-    success('Word report downloaded.')
-  } catch {
-    toastError('Failed to generate report.')
   }
-}
 
-async function downloadExcel(report: Report) {
-  info('Generating Excel workbook...')
-  try {
-    const res = await fetch('/api/reports/excel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reportId: report.id }),
-    })
-    if (!res.ok) {
-      const err = await res.json()
-      toastError(err.error ?? 'Failed to generate Excel report.')
-      return
+  async function downloadExcel(report: Report) {
+    info('Generating Excel workbook...')
+    try {
+      const res = await fetch('/api/reports/excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reportId: report.id }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toastError(err.error ?? 'Failed to generate Excel report.')
+        return
+      }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ESG_Data_v${report.report_version}.xlsx`
+      a.click()
+      URL.revokeObjectURL(url)
+      success('Excel workbook downloaded.')
+    } catch {
+      toastError('Failed to generate Excel report.')
     }
-    const blob = await res.blob()
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `ESG_Data_v${report.report_version}.xlsx`
-    a.click()
-    URL.revokeObjectURL(url)
-    success('Excel workbook downloaded.')
-  } catch {
-    toastError('Failed to generate Excel report.')
   }
-}
-  const org = cycle
-    ? (Array.isArray(cycle.workspaces) ? cycle.workspaces[0]?.organisations : cycle.workspaces?.organisations)
-    : null
-if (guard.checking || !guard.allowed) return null
+
+  if (guard.checking || !guard.allowed) return null
+
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-8">
@@ -308,7 +299,6 @@ if (guard.checking || !guard.allowed) return null
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Score summary */}
           {latestScore ? (
             <Card>
               <CardHeader title="Current scores — basis for report" />
@@ -342,12 +332,11 @@ if (guard.checking || !guard.allowed) return null
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-500">
-                Word reports download as branded .docx files covering all IFRS S1/S2, GRI, BSE, and SDG
-                disclosures with management placeholder comments. Excel workbooks contain 7 sheets
-                including a dashboard, materiality matrix, indicator data, IFRS status tracker, targets,
-                GRI index, and document register.
-              </p>
+                <p className="text-xs text-gray-400 mt-3">
+                  {latestScore.indicator_count_completed ?? 0} of {latestScore.indicator_count_total ?? 0} indicators completed
+                  ({latestScore.overall_completion_pct?.toFixed(0) ?? 0}%)
+                  {latestScore.calculated_at && ` · Scored ${new Date(latestScore.calculated_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                </p>
               </CardSection>
             </Card>
           ) : (
@@ -365,7 +354,6 @@ if (guard.checking || !guard.allowed) return null
             </div>
           )}
 
-          {/* Report history */}
           <Card padding="none">
             <div className="px-5 py-4 border-b border-gray-100">
               <h2 className="text-sm font-semibold text-gray-900">Generated reports</h2>
@@ -417,13 +405,13 @@ if (guard.checking || !guard.allowed) return null
                       </td>
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center gap-2 justify-end">
-                    <Button variant="secondary" size="sm" onClick={() => downloadReport(report)}>
-                        Word
-                      </Button>
-                      <Button variant="secondary" size="sm" onClick={() => downloadExcel(report)}>
-                        Excel
-                      </Button>
-                    </div>
+                          <Button variant="secondary" size="sm" onClick={() => downloadReport(report)}>
+                            Word
+                          </Button>
+                          <Button variant="secondary" size="sm" onClick={() => downloadExcel(report)}>
+                            Excel
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -432,13 +420,13 @@ if (guard.checking || !guard.allowed) return null
             )}
           </Card>
 
-          {/* Format note */}
           <div className="bg-gray-50 border border-gray-100 rounded-xl px-5 py-4">
             <p className="text-xs font-semibold text-gray-500 mb-1">Report format</p>
             <p className="text-xs text-gray-500">
-              Reports currently download as structured text files containing all assessment data,
-              scores, materiality findings, and methodology. Full PDF and Word export with
-              Botsfirm branding will be added in the next build phase.
+              Word reports download as branded .docx files covering all IFRS S1/S2, GRI, BSE, and SDG
+              disclosures with management placeholder comments. Excel workbooks contain 7 sheets
+              including a dashboard, materiality matrix, indicator data, IFRS status tracker, targets,
+              GRI index, and document register.
             </p>
           </div>
         </div>
