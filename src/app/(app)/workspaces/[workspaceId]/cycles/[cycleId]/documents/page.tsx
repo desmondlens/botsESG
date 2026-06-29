@@ -102,20 +102,39 @@ export default function DocumentVaultPage() {
   }, [fetchData])
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const file = e.target.files?.[0]
+  if (!file) return
 
-    setUploading(true)
+  setUploading(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      toastError('Session expired. Please sign in again.')
-      setUploading(false)
-      return
-    }
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) {
+    toastError('Session expired. Please sign in again.')
+    setUploading(false)
+    return
+  }
 
-    const storagePath = `${workspaceId}/${cycleId}/${Date.now()}_${file.name}`
+  // Compute SHA-256 hash for duplicate detection
+  const arrayBuffer = await file.arrayBuffer()
+  const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+  const hashArray = Array.from(new Uint8Array(hashBuffer))
+  const fileHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
 
+  // Check for duplicate
+  const { data: existing } = await supabase
+    .from('documents')
+    .select('id, filename')
+    .eq('file_hash', fileHash)
+    .eq('cycle_id', cycleId)
+
+  if (existing && existing.length > 0) {
+    toastError(`Duplicate file detected. This file was already uploaded as "${existing[0].filename}".`)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setUploading(false)
+    return
+  }
+
+  const storagePath = `${workspaceId}/${cycleId}/${Date.now()}_${file.name}`
     const { error: storageError } = await supabase.storage
       .from('esg-documents')
       .upload(storagePath, file, { upsert: false })
@@ -129,15 +148,16 @@ export default function DocumentVaultPage() {
     const { data: doc, error: dbError } = await supabase
       .from('documents')
       .insert({
-        workspace_id: workspaceId,
-        cycle_id: cycleId,
-        filename: file.name,
-        storage_path: storagePath,
-        file_type: file.type || null,
-        file_size_bytes: file.size,
-        description: description.trim() || null,
-        uploaded_by: user.id,
-      })
+  workspace_id: workspaceId,
+  cycle_id: cycleId,
+  filename: file.name,
+  storage_path: storagePath,
+  file_type: file.type || null,
+  file_size_bytes: file.size,
+  file_hash: fileHash,
+  description: description.trim() || null,
+  uploaded_by: user.id,
+})
       .select('id, filename, file_type, file_size_bytes, description, uploaded_at')
       .single()
 
